@@ -12,6 +12,7 @@ Reports CI for:
 Output: fim_bootstrap_ci.txt (table for paper)
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys
 import numpy as np
 from pathlib import Path

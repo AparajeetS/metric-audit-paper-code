@@ -19,6 +19,7 @@ Hypothesis (now normalized):
 Output: fim_norm_results.png + fim_norm_summary.txt
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys, math
 import numpy as np
 import matplotlib.pyplot as plt

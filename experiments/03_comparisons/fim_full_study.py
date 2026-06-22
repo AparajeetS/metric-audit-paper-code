@@ -19,6 +19,7 @@ Seeds: 42, 7, 123
 Output: fim_full_results.png + fim_full_table.csv
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys, math, csv
 import numpy as np
 import matplotlib.pyplot as plt

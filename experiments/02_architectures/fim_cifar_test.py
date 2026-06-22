@@ -20,6 +20,7 @@ SAM sharpness for comparison.
 Output: fim_cifar_results.png + fim_cifar_summary.txt
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys, math, os
 import numpy as np
 import torch

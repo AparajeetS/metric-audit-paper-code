@@ -14,6 +14,7 @@ Metric: final test_acc on held-out clean test set.
 Output: fim_early_stop_results.png + fim_early_stop_table.csv
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys, csv
 import numpy as np
 import matplotlib.pyplot as plt

@@ -17,6 +17,7 @@ All six computed simultaneously from the same model state.
 Spearman rho with test_acc reported for both acid test experiments.
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys, math
 import numpy as np
 import matplotlib.pyplot as plt

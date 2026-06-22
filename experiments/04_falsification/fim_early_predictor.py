@@ -27,6 +27,7 @@ Decisive number: partial( fim@20, final_te | val_loss@20 ).
 Output: fim_early_predictor.txt
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys, math
 import numpy as np
 from pathlib import Path

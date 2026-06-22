@@ -14,6 +14,7 @@ regardless of normalisation scheme because it operates in param space.
 Dual acid test: noise (n=400 fixed) + n_train (noise=0 fixed).
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys, math
 import numpy as np
 import torch

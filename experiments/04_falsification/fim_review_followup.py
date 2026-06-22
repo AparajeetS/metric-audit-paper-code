@@ -15,6 +15,7 @@ digits MLP (training-data FIM, consistent with the validated experiments):
 
   NEW FIX  Unit-normalized gradients â€” normalize each per-sample gradient to
            unit norm BEFORE the Gram matrix, isolating DIRECTIONAL diversity
+import path_setup  # noqa: F401 — configures sys.path for repo structure
            from magnitude. Motivated by the CIFAR condition-C collapse, where a
            fully-memorized model has vanishing gradients -> erank collapses ->
            noise undetectable. Unit-norm should be immune to that.

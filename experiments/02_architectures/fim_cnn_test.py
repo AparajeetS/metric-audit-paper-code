@@ -17,6 +17,7 @@ Same dual acid test:
 If direction is consistent and significant in both: PASSES.
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys, math
 import numpy as np
 import torch

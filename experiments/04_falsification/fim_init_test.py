@@ -21,6 +21,7 @@ If both null -> FIM has no use loss doesn't already cover; metric is closed.
 Output: fim_init_test.txt
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys
 import numpy as np
 from pathlib import Path

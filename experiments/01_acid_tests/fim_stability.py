@@ -8,6 +8,7 @@ If FIM_norm is stable at N=50, it's practical for real training pipelines.
 Output: fim_stability_results.png
 """
 
+import path_setup  # noqa: F401 — configures sys.path for repo structure
 import sys, math
 import numpy as np
 import matplotlib.pyplot as plt

@@ -33,7 +33,7 @@ To test this, we analyzed the longitudinal dependency graphs of five massive Pyt
 The Collapse Hypothesis failed spectacularly. Across all five systems, we found no monotonic densification or approach to structural criticality. 
 - **NumPy** maintained a stable average degree of $\sim 0.6$ and an SCC of $1-2\%$ across all tested versions.
 - **Pandas** showed an initial spike in entanglement (degree 4, SCC 24%), followed by progressive, deliberate modularization (dropping to degree 1.7, SCC 9%).
-- **Apache Airflow** exhibited oscillatory dynamics, bouncing between architectural resets (9.5% $\to$ 1.8% $\to$ 5%) but never entering runaway entanglement.
+- **Apache Airflow** exhibited oscillatory dynamics, bouncing between architectural resets (SCC 9.5% at v1.10 $\to$ 1.8% at v2.0 $\to$ oscillating between 5–9% in later releases) but never entering runaway entanglement.
 
 Instead of divergence, we observed *structural regulation*. Systems operate within bounded average degree regimes. This observation gave rise to the **Structural Homeostasis Hypothesis (SHH)**: *Mature engineered systems exhibit bounded internal coupling regimes and maintain small cyclic cores across growth phases, often converging toward modular sparsity.*
 
@@ -86,7 +86,7 @@ We subjected $\text{FIM}_{norm}$ to a systematic, four-stage validation sequence
 ### Stage 1: The Dual Acid Test (MLP)
 Naive metrics, such as Gradient Coherence (mean cosine similarity), fail the "dual acid test" by conflating data volume with label quality. Coherence decreases with label noise (good), but it also decreases with more training data (bad, as more data improves generalization). 
 
-We tested $\text{FIM}_{norm}$ on a Tanh MLP with 4 layers (sizes 8192, 8192, 2048, 320) using $N=100$ gradient samples.
+We tested $\text{FIM}_{norm}$ on a Tanh MLP with layer widths [64, 128, 64, 32, 10] (4 weight matrices totalling 18,752 parameters) trained for 200 epochs on UCI Digits, using $N=100$ gradient samples.
 
 | Probe | Condition | $\text{FIM}_{norm}$ | Test Acc | Spearman $\rho$ (p-value) |
 |-------|-----------|--------------------|----------|---------------------------|
@@ -164,7 +164,7 @@ Why did $\text{FIM}_{norm}$ pass the acid tests and track generalization at all?
 
 We initially hypothesized it measured the intrinsic dimensionality of learned gradient directions. To verify this, we unit-normalized the per-sample gradients—destroying magnitude while preserving purely directional geometry. 
 
-When we ran this, the predictive signal vanished entirely (the capacity correlation flipped from $-0.924$ to $+0.374$).
+When we ran this, the predictive signal vanished entirely. Raw $\text{FIM}_{norm}$ on the n_train probe yielded $\rho = -0.924$ ($p = 5.9 \times 10^{-9}$); the unit-normalized variant yielded $\rho = +0.374$ ($p = 0.10$, wrong sign, non-significant). The signal is purely magnitude-driven.
 
 This revealed that $\text{FIM}_{norm}$ is fundamentally **magnitude-driven**. It measures the effective concentration of gradient *energy*. High-loss (hard or noisy) examples produce large gradients that dominate the Gram matrix spectrum, driving the effective rank up. The metric is essentially a participation-ratio statistic of the loss distribution, which is why it collapses exactly when the loss collapses (e.g., during memorization in over-parameterized ResNets).
 
