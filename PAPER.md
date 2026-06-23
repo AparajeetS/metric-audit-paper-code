@@ -4,7 +4,7 @@
 *Independent Researcher*  
 *June 2026*  
 
-**Repository:** [AparajeetS/metric-audit-paper-code](https://github.com/AparajeetS/metric-audit-paper-code)
+**Repository:** [AparajeetS/Marginal Baseline Eval (MBE)-paper-code](https://github.com/AparajeetS/Marginal Baseline Eval (MBE)-paper-code)
 
 ---
 
@@ -16,7 +16,7 @@ This paper documents a comprehensive negative result. We originally sought to tr
 
 However, we subjected the metric to a strict baseline control: partial correlation against early validation loss. Under this control, the metric's predictive power collapsed entirely. It offered zero predictive value beyond the loss at epoch 20 (partial $r = +0.216, p=0.25$), and yielded a null, sign-inconsistent result at initialization ($\rho = -0.305, p=0.10$). 
 
-We publish this sequence not to promote the metric—which we decisively falsified—but to promote the rigorous falsification sequence itself. We formalize this sequence into the foundation of `metric-audit`: an ongoing, open-source benchmarking initiative designed to prevent the publication of representation metrics that offer false assurance.
+We publish this sequence not to promote the metric—which we decisively falsified—but to promote the rigorous falsification sequence itself. We formalize this sequence into the foundation of Marginal Baseline Eval (MBE): an ongoing, open-source benchmarking initiative designed to prevent the publication of representation metrics that offer false assurance.
 
 ---
 
@@ -79,7 +79,7 @@ $$\text{FIM}_{norm} = \frac{\text{erank}(S_{dual})}{N}$$
 
 ---
 
-## 4. The `metric-audit` Validation Sequence
+## 4. The Marginal Baseline Eval (MBE) Validation Sequence
 
 We subjected $\text{FIM}_{norm}$ to a systematic, four-stage validation sequence designed to expose common failure modes in proposed representation metrics. 
 
@@ -174,12 +174,12 @@ This revealed that $\text{FIM}_{norm}$ is fundamentally **magnitude-driven**. It
 
 Gradient effective rank ($\text{FIM}_{norm}$) is a robust, normalization-immune proxy for the concentration of gradient energy. However, it provides **no predictive value beyond the validation loss at any training checkpoint**. Practitioners should rely on validation loss, which is computationally free and strictly superior.
 
-More importantly, this case study demonstrates the critical necessity of the `metric-audit` protocol. As AI safety increasingly relies on internal representation metrics (e.g., mechanistic interpretability probes, representation monitors), we must demand that proposed signals demonstrate marginal predictive value beyond trivial baselines via partial correlation.
+More importantly, this case study demonstrates the critical necessity of the Marginal Baseline Eval (MBE) protocol. As AI safety increasingly relies on internal representation metrics (e.g., mechanistic interpretability probes, representation monitors), we must demand that proposed signals demonstrate marginal predictive value beyond trivial baselines via partial correlation.
 
-### Scaling the `metric-audit` Harness
+### Scaling the Marginal Baseline Eval (MBE) Harness
 The rapid falsification of $\text{FIM}_{norm}$ serves as Stage 1 of a broader initiative. The vulnerability exposed here—that complex geometric metrics can easily act as "loss proxies" and offer false assurance—is widespread in the AI safety literature. 
 
-Our ongoing work focuses on scaling `metric-audit` into a comprehensive, industry-standard benchmarking suite for the safety community. The next phases of this project include:
+Our ongoing work focuses on scaling Marginal Baseline Eval (MBE) into a comprehensive, industry-standard benchmarking suite for the safety community. The next phases of this project include:
 1. **Scaling to LLMs:** Expanding the harness beyond vision and toy models to evaluate representation metrics on Transformer-based language models during pretraining and RLHF.
 2. **Expanding the Test Battery:** Incorporating out-of-distribution (OOD) generalization probes and adversarial robustness baselines.
 3. **Automated Evaluation Pipelines:** Developing a CI/CD-style evaluation framework where researchers can submit proposed interpretability metrics and automatically receive a rigorous baseline-control audit.
