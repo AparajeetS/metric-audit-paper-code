@@ -2,3 +2,9 @@ numpy
 scipy
 pandas
 pingouin
+torch
+torchvision
+matplotlib
+seaborn
+scikit-learn
+rich

@@ -24,69 +24,52 @@ cd metric-audit-paper-code
 pip install -r requirements.txt
 ```
 
-## Quickstart: The Sample Eval
+## The MBE API
 
-We provide a plug-and-play Python script that simulates exactly how MBE detects a disguised loss proxy.
+MBE is a fully importable Python framework powered by `pandas` and `pingouin`. You can integrate it directly into your own model evaluation pipelines.
 
+```python
+from mbe_eval import MBEEvaluator
+
+# Pass your experimental arrays (numpy arrays)
+evaluator = MBEEvaluator(metric_name="My Cool Metric", baseline_name="Epoch 20 Val Loss")
+report = evaluator.evaluate(metric_vals, baseline_vals, target_vals)
+```
+This automatically prints a beautiful `rich` diagnostics table to the console and generates a high-resolution `seaborn` graphical report in the `mbe_reports/` directory.
+
+## Real PyTorch Demos
+
+We provide two end-to-end PyTorch scripts in the `examples/` directory that actually train neural networks and run the evaluation live.
+
+**1. The Acid Test (Stage 1)**
+Shows how a metric can successfully track capacity and noise, giving false assurance.
 ```bash
-cd mbe_eval
-python sample_eval.py
+python examples/01_run_acid_test.py
 ```
 
-### What happens in `sample_eval.py`?
-
-1. It simulates 30 heterogeneous training runs with varying hyperparameters.
-2. It generates a "Proposed Metric" that is secretly just a noisy copy of the early validation loss.
-3. **Stage 1 (Absolute Correlation):** It checks if the metric predicts final generalization. It will **PASS**, appearing to be a breakthrough discovery.
-4. **Stage 2 (MBE Control):** It runs the partial-correlation control against the trivial baseline (early validation loss). It will instantly **FAIL**, revealing the metric offers zero marginal signal.
-
-### Expected Output
-
+**2. The Heterogeneous Grid (Stage 4)**
+The killer demo. Trains 20 models with randomized hyperparameters, computes the Gradient Effective Rank, and runs the final MBE Partial Correlation control to prove the metric is a disguised loss proxy.
+```bash
+python examples/02_run_heterogeneous_grid.py
 ```
-==================================================
-Marginal Baseline Eval (MBE) - Sample Test Run
-==================================================
-
-[Stage 1] Absolute Correlation Check:
-  Correlation of Proposed Metric with Final Accuracy: r = -0.952 (p = 1.23e-15)
-  -> RESULT: PASS. Metric correlates significantly with generalization.
-
-[Stage 2] The MBE Baseline Control (Partial Correlation):
-  Marginal Correlation (Controlling for Early Val Loss): r = 0.087 (p = 0.654)
-  -> RESULT: FAIL. The metric offers NO independent predictive signal.
-  -> DIAGNOSIS: The proposed metric is a disguised Loss Proxy.
-```
-
-## The MBE Protocol (4 Stages)
-
-| Stage | Name | What It Tests |
-|-------|------|--------------|
-| 1 | **Acid Test** | Monotonic correlations with orthogonal drivers (data size ↑, noise ↑) |
-| 2 | **Architectural Invariance** | Survives BatchNorm, LayerNorm without collapsing |
-| 3 | **Heterogeneous Grid** | Evaluated across randomized hyperparameters to break collinearity |
-| 4 | **Baseline Control** | Partial correlation against trivial baseline (early validation loss) |
-
-## The Full 12-Test Falsification (Case Study)
-
-If you wish to explore the original case study that proved why MBE is necessary — the complete falsification of the Gradient Effective Rank metric (FIM_norm) across MLPs, CNNs, and Transformers — all scripts are preserved in the `experiments/` directory.
-
-See `PAPER.md` for the full technical writeup of the math, the origin story, and the mechanistic autopsy.
 
 ## Repository Structure
 
 ```
 metric-audit-paper-code/
-├── mbe_eval/               # The MBE evaluation framework
+├── mbe_eval/               # The core MBE evaluation API
 │   ├── __init__.py
-│   └── sample_eval.py      # Plug-and-play sample test
-├── experiments/             # All 12 original experiment scripts
-│   ├── 01_acid_tests/
-│   ├── 02_architecture_tests/
-│   └── 03_falsification/
-├── metric_audit/            # Core FIM_norm computation library
+│   ├── core.py             # MBEEvaluator class
+│   ├── utils.py            # PyTorch FIM_norm extraction
+│   └── sample_eval.py      # Basic synthetic simulation
+├── examples/               # Real end-to-end PyTorch demos
+│   ├── 01_run_acid_test.py
+│   └── 02_run_heterogeneous_grid.py
+├── experiments/            # All 12 original paper experiment scripts
+├── metric_audit/           # Core FIM_norm computation library
 ├── docs/
-│   └── RESULTS.md           # Raw numerical results for all 12 tests
-├── PAPER.md                 # Full technical writeup
+│   └── RESULTS.md          # Raw numerical results for the paper
+├── PAPER.md                # Full technical writeup
 ├── requirements.txt
 ├── LICENSE
 └── README.md
@@ -100,7 +83,3 @@ If you use the Marginal Baseline Eval in your own representation evaluation, ple
 Shadangi, A. (2026). Does It Beat the Baseline? A Comprehensive Negative Result 
 on Gradient Effective Rank as a Generalization Predictor. arXiv preprint.
 ```
-
-## License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
