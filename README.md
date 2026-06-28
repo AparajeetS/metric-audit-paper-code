@@ -12,6 +12,7 @@ The current research direction is deliberately empirical. A metric can look usef
 - `mbe_eval/`: lightweight package for raw and partial rank-correlation audits.
 - `examples/`: small demonstrations using FIM_norm and synthetic data.
 - `experiments/`: paper-scale and exploratory experiments, including CIFAR-10, transformers/language-model probes, and Kaggle-scale runs.
+- Public Kaggle walkthrough: [Audit ML Training Metrics with MBE](https://www.kaggle.com/code/aparajeetshadangi/audit-ml-training-metrics-with-mbe).
 - `PAPER.md` and `JMLR_STRATEGY.md`: evolving paper notes and publication strategy.
 
 ## Installation
@@ -109,6 +110,9 @@ FIM_norm is the motivating case study:
 The key point is selectivity: MBE weakens fragile pooled artifacts such as FIM_norm, feature rank, weight norms, and distance/update metrics, while several predictors survive, including validation loss, gradient/Fisher magnitude metrics, logit confidence metrics, and metric-batch accuracy.
 
 See [JMLR_RUN_PROGRESS_LOG_2026-06-28.md](JMLR_RUN_PROGRESS_LOG_2026-06-28.md) for the run ledger and [experiments/07_jmlr_scale/ARTIFACTS.md](experiments/07_jmlr_scale/ARTIFACTS.md) for result artifact hashes.
+
+For a public, runnable introduction to the method, see the Kaggle notebook:
+[Audit ML Training Metrics with MBE](https://www.kaggle.com/code/aparajeetshadangi/audit-ml-training-metrics-with-mbe).
 
 ## Repository Structure
 
