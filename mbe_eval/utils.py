@@ -1,50 +1,54 @@
-import torch
-import math
-import numpy as np
+﻿from __future__ import annotations
 
-def compute_fim_norm(model, loss_fn, inputs, targets):
+import math
+
+
+def _require_torch():
+    try:
+        import torch
+    except ImportError as exc:
+        raise ImportError(
+            "compute_fim_norm requires PyTorch. Install with `pip install mbe-eval[torch]`."
+        ) from exc
+    return torch
+
+
+def compute_fim_norm(model, loss_fn, inputs, targets) -> float:
+    """Compute normalized gradient/Fisher effective rank.
+
+    The estimator forms the dual per-sample-gradient Gram matrix
+    `G G^T / N`, computes its effective rank, and normalizes by `N`.
+    It is intentionally simple and exact for small metric batches; production
+    experiments can replace the per-sample loop with `torch.func` or `vmap`.
     """
-    Computes Gradient Effective Rank (FIM_norm) via the dual Gram matrix.
-    This exactly implements the mathematical formulation from the MBE paper.
-    """
-    N = inputs.shape[0]
-    
-    # We need per-sample gradients. Since standard PyTorch accumulates,
-    # we compute it one by one for exactness. (In practice, functorch/vmap is faster, 
-    # but a simple loop is highly readable for a demonstration.)
-    
+
+    torch = _require_torch()
+    n_samples = int(inputs.shape[0])
+    if n_samples <= 0:
+        raise ValueError("inputs must contain at least one sample")
+
     grads = []
-    model.eval() # ensure no batchnorm tracking during this
-    
-    for i in range(N):
-        x = inputs[i:i+1]
-        y = targets[i:i+1]
-        
-        loss = loss_fn(model(x), y)
-        model.zero_grad()
-        loss.backward()
-        
-        # Flatten all parameters' gradients into a single vector
-        g_vec = torch.cat([p.grad.flatten() for p in model.parameters() if p.grad is not None])
-        grads.append(g_vec.detach())
-        
-    G = torch.stack(grads) # shape: (N, P)
-    
-    # The Dual Gram Matrix
-    S_dual = (1.0 / N) * torch.matmul(G, G.T) # shape: (N, N)
-    
-    # Eigendecomposition
-    eigenvalues = torch.linalg.eigvalsh(S_dual)
-    eigenvalues = eigenvalues[eigenvalues > 1e-12] # numerical noise floor
-    
-    if len(eigenvalues) == 0:
-        return 1.0 # Max normalized rank
-        
-    # Shannon entropy of normalized spectrum
-    p = eigenvalues / eigenvalues.sum()
-    H = -(p * torch.log(p)).sum().item()
-    
-    erank = math.exp(H)
-    fim_norm = erank / N
-    
-    return fim_norm
+    was_training = getattr(model, "training", False)
+    model.eval()
+    try:
+        for i in range(n_samples):
+            model.zero_grad(set_to_none=True)
+            loss = loss_fn(model(inputs[i : i + 1]), targets[i : i + 1])
+            loss.backward()
+            pieces = [p.grad.flatten() for p in model.parameters() if p.grad is not None]
+            if not pieces:
+                raise ValueError("model produced no parameter gradients")
+            grads.append(torch.cat(pieces).detach())
+    finally:
+        if was_training:
+            model.train()
+
+    grad_matrix = torch.stack(grads)
+    dual = (grad_matrix @ grad_matrix.T) / n_samples
+    eigenvalues = torch.linalg.eigvalsh(dual).clamp_min(1e-12)
+    probabilities = eigenvalues / eigenvalues.sum()
+    entropy = -(probabilities * torch.log(probabilities)).sum().item()
+    return float(math.exp(entropy) / n_samples)
+
+
+__all__ = ["compute_fim_norm"]

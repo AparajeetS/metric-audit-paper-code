@@ -1,133 +1,350 @@
-import os
-import pandas as pd
-import numpy as np
-import pingouin as pg
-from scipy.stats import pearsonr, spearmanr
+﻿from __future__ import annotations
+
 from dataclasses import dataclass
-import matplotlib.pyplot as plt
-import seaborn as sns
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
+import math
+from typing import Sequence
 
-console = Console()
+import numpy as np
+import pandas as pd
+from pandas.api.types import is_numeric_dtype
+from scipy.stats import spearmanr, t as student_t
 
-@dataclass
+
+DEFAULT_EFFECT_THRESHOLD = 0.20
+DEFAULT_WASHOUT_THRESHOLD = 0.10
+
+
+@dataclass(frozen=True)
 class MBEReport:
+    """Backward-compatible report for a single metric audit."""
+
     metric_name: str
-    baseline_name: str
+    baseline_name: str | list[str]
     absolute_r: float
     absolute_p: float
     partial_r: float
     partial_p: float
-    is_loss_proxy: bool
+    is_confounded: bool
+    classification: str = "weak-or-mixed"
+
+    @property
+    def is_loss_proxy(self) -> bool:
+        """Backward-compatible alias for older notebooks."""
+
+        return self.is_confounded
+
+
+def rank_values(series: pd.Series | Sequence[float]) -> np.ndarray:
+    """Return average ranks as a float array."""
+
+    return pd.Series(series).rank(method="average").to_numpy(dtype=float)
+
+
+def pearson_corr(a: np.ndarray, b: np.ndarray) -> float:
+    """Pearson correlation on already-transformed vectors."""
+
+    if len(a) < 3 or np.nanstd(a) <= 0 or np.nanstd(b) <= 0:
+        return math.nan
+    return float(np.corrcoef(a, b)[0, 1])
+
+
+def _design_matrix(df: pd.DataFrame, controls: Sequence[str]) -> np.ndarray:
+    blocks: list[np.ndarray] = [np.ones(len(df), dtype=float)]
+    for control in controls:
+        if control not in df.columns:
+            continue
+        series = df[control]
+        if is_numeric_dtype(series):
+            blocks.append(rank_values(series.astype(float)))
+        else:
+            dummies = pd.get_dummies(series.astype(str), drop_first=True)
+            for col in dummies.columns:
+                blocks.append(dummies[col].to_numpy(dtype=float))
+    return np.column_stack(blocks)
+
+
+def _residualize(y: np.ndarray, design: np.ndarray) -> np.ndarray:
+    beta = np.linalg.lstsq(design, y, rcond=None)[0]
+    return y - design @ beta
+
+
+def _p_value_from_r(r: float, n: int, dof_adjustment: int = 0) -> float:
+    if np.isnan(r):
+        return math.nan
+    dof = n - 2 - dof_adjustment
+    if dof <= 0 or abs(r) >= 1:
+        return math.nan
+    statistic = r * math.sqrt(dof / max(1e-12, 1 - r * r))
+    return float(2 * student_t.sf(abs(statistic), dof))
+
+
+def spearman_corr(df: pd.DataFrame, metric: str, target: str) -> tuple[float, float, int]:
+    """Spearman rank correlation and p-value."""
+
+    clean = df[[metric, target]].replace([np.inf, -np.inf], np.nan).dropna()
+    if len(clean) < 3:
+        return math.nan, math.nan, len(clean)
+    result = spearmanr(clean[metric], clean[target])
+    return float(result.statistic), float(result.pvalue), len(clean)
+
+
+def partial_rank_corr(
+    df: pd.DataFrame,
+    metric: str,
+    target: str,
+    controls: Sequence[str],
+) -> tuple[float, float, int]:
+    """Partial Spearman correlation by residualizing ranks on ranked controls.
+
+    Numeric controls are rank transformed. Categorical controls are one-hot
+    encoded. The returned p-value uses the standard partial-correlation
+    t approximation, adjusted by the design matrix rank.
+    """
+
+    controls = [c for c in controls if c not in {metric, target}]
+    cols = list(dict.fromkeys([metric, target, *[c for c in controls if c in df.columns]]))
+    clean = df[cols].replace([np.inf, -np.inf], np.nan).dropna()
+    if len(clean) < 5:
+        return math.nan, math.nan, len(clean)
+
+    x = rank_values(clean[metric])
+    y = rank_values(clean[target])
+    design = _design_matrix(clean, controls)
+    try:
+        x_resid = _residualize(x, design)
+        y_resid = _residualize(y, design)
+    except np.linalg.LinAlgError:
+        return math.nan, math.nan, len(clean)
+
+    r = pearson_corr(x_resid, y_resid)
+    rank = int(np.linalg.matrix_rank(design)) - 1
+    return r, _p_value_from_r(r, len(clean), rank), len(clean)
+
+
+def classify_effect(
+    raw_r: float,
+    partial_r: float,
+    effect_threshold: float = DEFAULT_EFFECT_THRESHOLD,
+    washout_threshold: float = DEFAULT_WASHOUT_THRESHOLD,
+) -> str:
+    """Classify how a metric behaves after MBE controls."""
+
+    if np.isnan(raw_r) or np.isnan(partial_r):
+        return "insufficient-data"
+    if abs(raw_r) >= effect_threshold and abs(partial_r) < washout_threshold:
+        return "washout"
+    if raw_r <= -effect_threshold and partial_r >= effect_threshold:
+        return "sign-inversion"
+    if raw_r >= effect_threshold and partial_r <= -effect_threshold:
+        return "reverse-inversion"
+    if abs(raw_r) < effect_threshold and abs(partial_r) >= effect_threshold:
+        return "hidden-after-control"
+    if np.sign(raw_r) == np.sign(partial_r) and abs(partial_r) >= effect_threshold:
+        return "survives"
+    return "weak-or-mixed"
+
+
+def _bootstrap_ci(
+    df: pd.DataFrame,
+    metric: str,
+    target: str,
+    controls: Sequence[str],
+    n_boot: int,
+    seed: int,
+) -> dict[str, float]:
+    rng = np.random.default_rng(seed)
+    raw_vals: list[float] = []
+    partial_vals: list[float] = []
+    delta_vals: list[float] = []
+    idx = np.arange(len(df))
+    for _ in range(n_boot):
+        sample = df.iloc[rng.choice(idx, size=len(idx), replace=True)]
+        raw, _, _ = spearman_corr(sample, metric, target)
+        partial, _, _ = partial_rank_corr(sample, metric, target, controls)
+        raw_vals.append(raw)
+        partial_vals.append(partial)
+        delta_vals.append(partial - raw if not np.isnan(raw) and not np.isnan(partial) else math.nan)
+
+    def quantile(vals: list[float], q: float) -> float:
+        arr = np.asarray([v for v in vals if not np.isnan(v)], dtype=float)
+        return float(np.quantile(arr, q)) if len(arr) else math.nan
+
+    return {
+        "raw_ci_low": quantile(raw_vals, 0.025),
+        "raw_ci_high": quantile(raw_vals, 0.975),
+        "partial_ci_low": quantile(partial_vals, 0.025),
+        "partial_ci_high": quantile(partial_vals, 0.975),
+        "delta_ci_low": quantile(delta_vals, 0.025),
+        "delta_ci_high": quantile(delta_vals, 0.975),
+    }
+
+
+def audit_metric(
+    df: pd.DataFrame,
+    metric: str,
+    target: str,
+    controls: Sequence[str],
+    *,
+    group: str = "pooled",
+    bootstrap: int = 0,
+    seed: int = 0,
+    effect_threshold: float = DEFAULT_EFFECT_THRESHOLD,
+    washout_threshold: float = DEFAULT_WASHOUT_THRESHOLD,
+) -> dict[str, float | int | str]:
+    """Audit one metric against one target under MBE controls."""
+
+    controls = [c for c in controls if c not in {metric, target}]
+    cols = list(dict.fromkeys([metric, target, *[c for c in controls if c in df.columns]]))
+    clean = df[cols].replace([np.inf, -np.inf], np.nan).dropna()
+    raw_r, raw_p, n_raw = spearman_corr(clean, metric, target)
+    partial_r, partial_p, n_partial = partial_rank_corr(clean, metric, target, controls)
+    row: dict[str, float | int | str] = {
+        "group": group,
+        "metric": metric,
+        "target": target,
+        "controls": ",".join(controls),
+        "n": min(n_raw, n_partial),
+        "raw_r": raw_r,
+        "raw_p": raw_p,
+        "partial_r": partial_r,
+        "partial_p": partial_p,
+        "delta_partial_minus_raw": partial_r - raw_r
+        if not np.isnan(raw_r) and not np.isnan(partial_r)
+        else math.nan,
+        "classification": classify_effect(raw_r, partial_r, effect_threshold, washout_threshold),
+    }
+    if bootstrap > 0 and len(clean) >= 8:
+        row.update(_bootstrap_ci(clean, metric, target, controls, bootstrap, seed))
+    return row
+
+
+def audit_metrics(
+    df: pd.DataFrame,
+    metrics: Sequence[str],
+    target: str,
+    controls: Sequence[str],
+    *,
+    groupby: Sequence[str] | str | None = None,
+    bootstrap: int = 0,
+    seed: int = 0,
+    include_pooled: bool = True,
+) -> pd.DataFrame:
+    """Audit many metrics in a dataframe.
+
+    Parameters
+    ----------
+    df:
+        One row per training run/model.
+    metrics:
+        Candidate metric columns to audit.
+    target:
+        Outcome column, such as final accuracy, validation loss, or perplexity.
+    controls:
+        Marginal baselines/control variables, such as learning rate, weight
+        decay, optimizer, architecture, task, or seed.
+    groupby:
+        Optional grouping columns. For example, `groupby=["suite", "arch"]`
+        reports pooled results plus one result per suite and per architecture.
+    bootstrap:
+        Number of bootstrap resamples for confidence intervals. Use 0 to skip.
+    """
+
+    available_metrics = [m for m in metrics if m in df.columns and m != target]
+    rows: list[dict[str, float | int | str]] = []
+    if include_pooled:
+        for i, metric in enumerate(available_metrics):
+            rows.append(
+                audit_metric(
+                    df,
+                    metric,
+                    target,
+                    controls,
+                    group="pooled",
+                    bootstrap=bootstrap,
+                    seed=seed + i,
+                )
+            )
+
+    if groupby:
+        group_cols = [groupby] if isinstance(groupby, str) else list(groupby)
+        for group_col in group_cols:
+            if group_col not in df.columns:
+                continue
+            for value, group_df in df.groupby(group_col, dropna=False):
+                label = f"{group_col}={value}"
+                for i, metric in enumerate(available_metrics):
+                    rows.append(
+                        audit_metric(
+                            group_df,
+                            metric,
+                            target,
+                            controls,
+                            group=label,
+                            bootstrap=bootstrap,
+                            seed=seed + 10_000 + i,
+                        )
+                    )
+    return pd.DataFrame(rows)
+
 
 class MBEEvaluator:
+    """Backward-compatible single-metric evaluator.
+
+    New projects should prefer `audit_metric` or `audit_metrics`.
     """
-    The Marginal Baseline Eval (MBE) framework.
-    Evaluates whether a proposed representation metric offers independent
-    structural insight beyond a trivial baseline (e.g. early validation loss).
-    """
-    
-    def __init__(self, metric_name: str = "Proposed Metric", baseline_name: str = "Validation Loss"):
+
+    def __init__(
+        self,
+        metric_name: str = "Proposed Metric",
+        baseline_name: str | list[str] = "Baseline",
+    ) -> None:
         self.metric_name = metric_name
         self.baseline_name = baseline_name
-        
-    def evaluate(self, metric_vals: np.ndarray, baseline_vals: np.ndarray, target_vals: np.ndarray, 
-                 alpha: float = 0.05, output_dir: str = "mbe_reports") -> MBEReport:
-        """
-        Runs Stage 1 (Absolute Correlation) and Stage 4 (Partial Correlation).
-        """
-        console.print(Panel(f"[bold cyan]Marginal Baseline Eval (MBE) - {self.metric_name}[/bold cyan]"))
-        
-        # Stage 1: Absolute Correlation (Does it predict the target at all?)
-        # We use Spearman rank correlation as the primary measure for structural metrics
-        abs_r, abs_p = spearmanr(metric_vals, target_vals)
-        
-        # Stage 4: Partial Correlation (Does it beat the baseline?)
-        # Partial correlation requires linear controls, so we use Pearson on the ranks if desired,
-        # but pingouin partial_corr handles linear partials well. We'll use pingouin.
-        df = pd.DataFrame({
-            'Target': target_vals,
-            'Metric': metric_vals,
-            'Baseline': baseline_vals
-        })
-        
-        pcorr = pg.partial_corr(data=df, x='Metric', y='Target', covar='Baseline', method='spearman')
-        part_r = pcorr['r'].values[0]
-        part_p = pcorr['p_val'].values[0]
-        
-        is_proxy = part_p > alpha
-        
-        report = MBEReport(
+
+    def evaluate(
+        self,
+        metric_vals: np.ndarray,
+        baseline_vals: np.ndarray,
+        target_vals: np.ndarray,
+        alpha: float = 0.05,
+        output_dir: str | None = None,
+    ) -> MBEReport:
+        metric_vals = np.asarray(metric_vals)
+        baseline_vals = np.asarray(baseline_vals)
+        target_vals = np.asarray(target_vals)
+        df = pd.DataFrame({"Metric": metric_vals, "Target": target_vals})
+        if isinstance(self.baseline_name, str):
+            df[self.baseline_name] = baseline_vals
+            controls = [self.baseline_name]
+        else:
+            controls = list(self.baseline_name)
+            if baseline_vals.ndim == 1 and len(controls) == 1:
+                df[controls[0]] = baseline_vals
+            else:
+                for i, name in enumerate(controls):
+                    df[name] = baseline_vals[:, i]
+
+        row = audit_metric(df, "Metric", "Target", controls)
+        return MBEReport(
             metric_name=self.metric_name,
             baseline_name=self.baseline_name,
-            absolute_r=abs_r, absolute_p=abs_p,
-            partial_r=part_r, partial_p=part_p,
-            is_loss_proxy=is_proxy
+            absolute_r=float(row["raw_r"]),
+            absolute_p=float(row["raw_p"]),
+            partial_r=float(row["partial_r"]),
+            partial_p=float(row["partial_p"]),
+            is_confounded=bool(float(row["partial_p"]) > alpha)
+            if not np.isnan(float(row["partial_p"]))
+            else True,
+            classification=str(row["classification"]),
         )
-        
-        self._print_rich_report(report)
-        self._generate_plots(df, report, output_dir)
-        
-        return report
 
-    def _print_rich_report(self, r: MBEReport):
-        table = Table(title="MBE Evaluation Results", show_header=True, header_style="bold magenta")
-        table.add_column("Stage", style="dim", width=20)
-        table.add_column("Test", width=40)
-        table.add_column("Correlation", justify="right")
-        table.add_column("p-value", justify="right")
-        table.add_column("Verdict", justify="center")
-        
-        # Absolute
-        abs_verdict = "[bold green]PASS[/bold green]" if r.absolute_p < 0.05 else "[bold red]FAIL[/bold red]"
-        abs_p_str = f"[green]{r.absolute_p:.2e}[/green]" if r.absolute_p < 0.05 else f"[red]{r.absolute_p:.2e}[/red]"
-        table.add_row("1: Absolute", f"Correlation with Final Target", f"{r.absolute_r:.3f}", abs_p_str, abs_verdict)
-        
-        # Partial
-        part_verdict = "[bold red]FAIL[/bold red]" if r.is_loss_proxy else "[bold green]PASS[/bold green]"
-        part_p_str = f"[red]{r.partial_p:.2e}[/red]" if r.is_loss_proxy else f"[green]{r.partial_p:.2e}[/green]"
-        table.add_row("4: MBE Control", f"Controlling for {r.baseline_name}", f"{r.partial_r:.3f}", part_p_str, part_verdict)
-        
-        console.print(table)
-        
-        if r.is_loss_proxy:
-            console.print(f"[bold red]DIAGNOSIS: {r.metric_name} is a disguised Loss Proxy.[/bold red]")
-            console.print(f"It provides NO independent predictive signal beyond {r.baseline_name}.\n")
-        else:
-            console.print(f"[bold green]DIAGNOSIS: {r.metric_name} provides independent structural insight![/bold green]\n")
 
-    def _generate_plots(self, df: pd.DataFrame, r: MBEReport, output_dir: str):
-        os.makedirs(output_dir, exist_ok=True)
-        sns.set_theme(style="whitegrid")
-        
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-        fig.suptitle(f"MBE Report: {r.metric_name}", fontsize=16, fontweight='bold')
-        
-        # Plot 1: Metric vs Target (Absolute)
-        sns.regplot(ax=axes[0], data=df, x='Metric', y='Target', scatter_kws={'alpha':0.6, 's':80}, color='indigo')
-        axes[0].set_title(f"Stage 1: Absolute Correlation\nρ = {r.absolute_r:.3f} (p = {r.absolute_p:.2e})", fontsize=14)
-        axes[0].set_xlabel(r.metric_name, fontsize=12)
-        axes[0].set_ylabel("Final Target (e.g., Accuracy)", fontsize=12)
-        
-        # Plot 2: Bar chart of correlation collapse
-        labels = ['Absolute\n(Uncontrolled)', f'Marginal\n(Controlling {r.baseline_name})']
-        vals = [abs(r.absolute_r), abs(r.partial_r)]
-        colors = ['#2ecc71' if r.absolute_p < 0.05 else '#e74c3c', 
-                  '#2ecc71' if not r.is_loss_proxy else '#e74c3c']
-        
-        axes[1].bar(labels, vals, color=colors, alpha=0.8, edgecolor='black', linewidth=1.5)
-        axes[1].set_ylim(0, 1.0)
-        axes[1].set_ylabel("Absolute Magnitude of Spearman ρ", fontsize=12)
-        axes[1].set_title("Stage 4: Predictive Power Collapse", fontsize=14)
-        
-        for i, v in enumerate(vals):
-            axes[1].text(i, v + 0.02, f"|ρ|={v:.3f}", ha='center', fontsize=12, fontweight='bold')
-
-        plt.tight_layout()
-        save_path = os.path.join(output_dir, f"mbe_report_{r.metric_name.replace(' ', '_')}.png")
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        console.print(f"[dim]Generated graphical report at: {save_path}[/dim]")
+__all__ = [
+    "MBEReport",
+    "MBEEvaluator",
+    "audit_metric",
+    "audit_metrics",
+    "classify_effect",
+    "partial_rank_corr",
+    "spearman_corr",
+]

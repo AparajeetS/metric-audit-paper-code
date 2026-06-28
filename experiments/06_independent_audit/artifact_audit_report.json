@@ -1,0 +1,221 @@
+[
+  {
+    "name": "mlp_large_grid_v3_asam",
+    "path": "C:\\Research\\cei\\metric-audit-paper-code\\experiments\\04_falsification\\out\\large_grid_v3_asam.csv",
+    "rows": 1000,
+    "cols": 11,
+    "family": "mlp",
+    "final_acc_mean": 0.9407500004768372,
+    "metrics": {
+      "sam_sharpness": {
+        "absolute_r": -0.3821954319149485,
+        "partial_r": 0.4252996785716049,
+        "narrative": "sign-inversion"
+      },
+      "asam_sharpness": {
+        "absolute_r": 0.1596507269711706,
+        "partial_r": 0.5187835474429395,
+        "narrative": "weak-or-mixed"
+      },
+      "fim_norm": {
+        "absolute_r": -0.8148683098746161,
+        "partial_r": 0.033433319495302344,
+        "narrative": "washout-after-control"
+      },
+      "fisher_trace": {
+        "absolute_r": 0.07680362475495676,
+        "partial_r": 0.5218655401679766,
+        "narrative": "weak-or-mixed"
+      },
+      "grad_norm": {
+        "absolute_r": -0.39589994996075195,
+        "partial_r": 0.41506440286661483,
+        "narrative": "sign-inversion"
+      },
+      "weight_norm": {
+        "absolute_r": 0.814470602993769,
+        "partial_r": -0.03389839069221176,
+        "narrative": "washout-after-control"
+      }
+    },
+    "temporal": {}
+  },
+  {
+    "name": "mlp_unified_grid_current",
+    "path": "C:\\Research\\cei\\metric-audit-paper-code\\experiments\\04_falsification\\out\\unified_grid.csv",
+    "rows": 1000,
+    "cols": 27,
+    "family": "mlp",
+    "final_acc_mean": 0.9421666672229767,
+    "metrics": {
+      "sam_sharpness": {
+        "absolute_r": -0.43870718370727063,
+        "partial_r": 0.3990560121640475,
+        "narrative": "sign-inversion"
+      },
+      "asam_sharpness": {
+        "absolute_r": 0.1442318240209844,
+        "partial_r": 0.5809871796528718,
+        "narrative": "weak-or-mixed"
+      },
+      "fim_norm": {
+        "absolute_r": -0.8030105128411058,
+        "partial_r": 0.05558900567132537,
+        "narrative": "washout-after-control"
+      },
+      "fisher_trace": {
+        "absolute_r": 0.1385549801454794,
+        "partial_r": 0.5534040896438813,
+        "narrative": "weak-or-mixed"
+      },
+      "grad_norm": {
+        "absolute_r": -0.4453236884094359,
+        "partial_r": 0.389415918709492,
+        "narrative": "sign-inversion"
+      },
+      "weight_norm": {
+        "absolute_r": 0.8081340212263329,
+        "partial_r": -0.056782494627477725,
+        "narrative": "washout-after-control"
+      }
+    },
+    "temporal": {
+      "sam_sharpness_ep5": {
+        "partial_r": -0.06384760054838835
+      },
+      "sam_sharpness_ep10": {
+        "partial_r": 0.3213710100206162
+      },
+      "sam_sharpness_ep20": {
+        "partial_r": 0.3990560121640475
+      },
+      "sam_sharpness_ep50": {
+        "partial_r": 0.07355947031880511
+      },
+      "asam_sharpness_ep5": {
+        "partial_r": -0.35115121335975913
+      },
+      "asam_sharpness_ep10": {
+        "partial_r": 0.28220679159981754
+      },
+      "asam_sharpness_ep20": {
+        "partial_r": 0.5809871796528718
+      },
+      "asam_sharpness_ep50": {
+        "partial_r": 0.2704925126653039
+      }
+    }
+  },
+  {
+    "name": "cnn_kaggle_local_50",
+    "path": "C:\\Research\\cei\\metric-audit-paper-code\\experiments\\05_kaggle\\kaggle_cifar10_results.csv",
+    "rows": 50,
+    "cols": 9,
+    "family": "cnn",
+    "final_acc_mean": 0.49849,
+    "metrics": {
+      "sam_sharpness": {
+        "absolute_r": 0.6476181336702748,
+        "partial_r": 0.33080133788267735,
+        "narrative": "positive-signal-survives"
+      },
+      "grad_norm": {
+        "absolute_r": 0.6363330779523069,
+        "partial_r": 0.30984672163879007,
+        "narrative": "positive-signal-survives"
+      },
+      "weight_norm": {
+        "absolute_r": 0.9274394939621843,
+        "partial_r": 0.3961260912441975,
+        "narrative": "positive-signal-survives"
+      },
+      "fisher_trace": {
+        "absolute_r": 0.48045524450327,
+        "partial_r": 0.45029415996126704,
+        "narrative": "positive-signal-survives"
+      },
+      "fim_norm": {
+        "absolute_r": 0.3756723016240961,
+        "partial_r": 0.4451824352793985,
+        "narrative": "positive-signal-survives"
+      },
+      "val_loss": {
+        "absolute_r": -0.8916634662605414,
+        "partial_r": -0.5130961380408149,
+        "narrative": "negative-signal-survives"
+      }
+    },
+    "temporal": {}
+  },
+  {
+    "name": "cnn_kaggle_download_250",
+    "path": "C:\\Users\\apara\\Downloads\\kaggle_cifar10_results (2).csv",
+    "rows": 250,
+    "cols": 22,
+    "family": "cnn",
+    "final_acc_mean": 0.580112,
+    "metrics": {
+      "sam_sharpness": {
+        "absolute_r": -0.10476929075438282,
+        "partial_r": -0.16656833188032555,
+        "narrative": "weak-or-mixed"
+      },
+      "asam_sharpness": {
+        "absolute_r": -0.12463799121453667,
+        "partial_r": -0.09870238962812056,
+        "narrative": "washout-after-control"
+      },
+      "grad_norm": {
+        "absolute_r": -0.19006273132733262,
+        "partial_r": -0.1908187277358533,
+        "narrative": "weak-or-mixed"
+      },
+      "weight_norm": {
+        "absolute_r": -0.018040391391737517,
+        "partial_r": 0.08686616213752929,
+        "narrative": "washout-after-control"
+      },
+      "fisher_trace": {
+        "absolute_r": -0.05832348170213545,
+        "partial_r": -0.13576465697429854,
+        "narrative": "weak-or-mixed"
+      },
+      "fim_norm": {
+        "absolute_r": -0.05079327533318442,
+        "partial_r": -0.0693940391281791,
+        "narrative": "washout-after-control"
+      },
+      "val_loss": {
+        "absolute_r": -0.09531937906448804,
+        "partial_r": -0.04880475362141316,
+        "narrative": "washout-after-control"
+      }
+    },
+    "temporal": {
+      "sam_sharpness_ep5": {
+        "partial_r": -0.18787595254032402
+      },
+      "sam_sharpness_ep10": {
+        "partial_r": -0.22818498390308187
+      },
+      "sam_sharpness_ep20": {
+        "partial_r": -0.16656833188032555
+      },
+      "sam_sharpness_ep50": {
+        "partial_r": -0.43810426470723207
+      },
+      "asam_sharpness_ep5": {
+        "partial_r": -0.1050597166863316
+      },
+      "asam_sharpness_ep10": {
+        "partial_r": -0.1726219194807986
+      },
+      "asam_sharpness_ep20": {
+        "partial_r": -0.09870238962812056
+      },
+      "asam_sharpness_ep50": {
+        "partial_r": -0.5375252842374211
+      }
+    }
+  }
+]

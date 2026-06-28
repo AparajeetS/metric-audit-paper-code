@@ -1,0 +1,13 @@
+{
+  "id": "aparajeetshadangi/cei-mbe-cifar10-grid",
+  "title": "CEI MBE CIFAR10 Grid",
+  "code_file": "kaggle_cifar10_grid.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": []
+}

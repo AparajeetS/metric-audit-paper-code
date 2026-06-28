@@ -1,93 +1,150 @@
-# The Marginal Baseline Eval (MBE)
+﻿# Metric Audit Paper Code
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI](https://img.shields.io/pypi/v/mbe-eval.svg)](https://pypi.org/project/mbe-eval/)
 
-Welcome to the **Marginal Baseline Eval (MBE)** repository! 
+Code and Python package for experiments on **Marginal Baseline Evaluation (MBE)**: an audit protocol for testing whether a proposed generalization metric keeps predictive signal after ordinary training baselines and experimental design variables are controlled.
 
-This repository provides the formal implementation of the MBE protocol — a strict, 4-stage validation methodology designed to rigorously audit representation metrics in deep neural networks. 
+The current research direction is deliberately empirical. A metric can look useful under raw correlation, weaken after controls, invert sign, or survive in some architectures/tasks but not others. MBE is the framework for making those cases visible instead of treating one pooled correlation as the whole story.
 
-It was originally built during a massive case study that mathematically falsified the Gradient Effective Rank (FIM_norm) metric.
+## What This Repository Contains
 
-## Why Do We Need MBE?
-
-The AI safety and interpretability communities frequently propose internal structural metrics (e.g., representation geometry, effective rank, gradient coherence) to predict generalization or track model health. 
-
-However, many of these metrics are secretly **Loss Proxies**. Because early validation loss trivially predicts final test accuracy, any metric that mathematically correlates with the *magnitude* of the loss will automatically correlate with generalization. Such a metric provides **zero independent structural insight**.
-
-The MBE protocol catches these false positive metrics using a rigorous **partial-correlation baseline control**.
+- `mbe_eval/`: lightweight package for raw and partial rank-correlation audits.
+- `examples/`: small demonstrations using FIM_norm and synthetic data.
+- `experiments/`: paper-scale and exploratory experiments, including CIFAR-10, transformers/language-model probes, and Kaggle-scale runs.
+- `PAPER.md` and `JMLR_STRATEGY.md`: evolving paper notes and publication strategy.
 
 ## Installation
 
-You can install the framework directly from PyPI:
+Install the core MBE audit library:
 
 ```bash
 pip install mbe-eval
 ```
 
-Or, if you want to run the PyTorch demos, clone the repository:
+Current PyPI release: [`mbe-eval==0.2.0`](https://pypi.org/project/mbe-eval/0.2.0/).
+
+For local development from this repository:
 
 ```bash
 git clone https://github.com/AparajeetS/metric-audit-paper-code.git
 cd metric-audit-paper-code
-pip install -r requirements.txt
+pip install -e .
 ```
 
-## The MBE API
+The core install only requires NumPy, pandas, and SciPy. FIM_norm extraction uses PyTorch and is optional:
 
-MBE is a fully importable Python framework powered by `pandas` and `pingouin`. You can integrate it directly into your own model evaluation pipelines.
+```bash
+pip install "mbe-eval[torch]"
+```
+
+## Basic Usage
+
+Audit several candidate metrics in one dataframe:
+
+```python
+import pandas as pd
+from mbe_eval import audit_metrics
+
+df = pd.DataFrame(
+    {
+        "fim_norm": [0.42, 0.51, 0.37, 0.65],
+        "val_loss_ep20": [1.2, 0.9, 1.4, 0.7],
+        "learning_rate": [1e-3, 1e-3, 3e-4, 3e-4],
+        "weight_decay": [1e-4, 1e-5, 1e-4, 1e-5],
+        "test_accuracy": [0.71, 0.78, 0.68, 0.82],
+    }
+)
+
+report = audit_metrics(
+    df,
+    metrics=["fim_norm", "val_loss_ep20"],
+    target="test_accuracy",
+    controls=["learning_rate", "weight_decay"],
+)
+
+print(report[["metric", "raw_r", "partial_r", "classification"]])
+```
+
+Use the backward-compatible single-metric API:
 
 ```python
 from mbe_eval import MBEEvaluator
 
-# Pass your experimental arrays (numpy arrays)
-evaluator = MBEEvaluator(metric_name="My Cool Metric", baseline_name="Epoch 20 Val Loss")
+evaluator = MBEEvaluator(metric_name="FIM_norm", baseline_name="Validation Loss")
 report = evaluator.evaluate(metric_vals, baseline_vals, target_vals)
+print(report.partial_r, report.classification)
 ```
-This automatically prints a beautiful `rich` diagnostics table to the console and generates a high-resolution `seaborn` graphical report in the `mbe_reports/` directory.
 
-## Real PyTorch Demos
+## Reproducing Current Experiments
 
-We provide two end-to-end PyTorch scripts in the `examples/` directory that actually train neural networks and run the evaluation live.
+The current paper-scale audit lives in:
 
-**1. The Acid Test (Stage 1)**
-Shows how a metric can successfully track capacity and noise, giving false assurance.
 ```bash
-python examples/01_run_acid_test.py
+python experiments/07_jmlr_scale/analyze_jmlr_scale.py
 ```
 
-**2. The Heterogeneous Grid (Stage 4)**
-The killer demo. Trains 20 models with randomized hyperparameters, computes the Gradient Effective Rank, and runs the final MBE Partial Correlation control to prove the metric is a disguised loss proxy.
+Earlier falsification experiments are in:
+
 ```bash
-python examples/02_run_heterogeneous_grid.py
+python experiments/04_falsification/fim_unified_grid.py
+python experiments/04_falsification/extract_tables.py
 ```
+
+The Kaggle-scale scripts under `experiments/07_jmlr_scale/` train and audit image and text models. Their outputs are summarized in `jmlr_scale_v2_audit_summary.md` when downloaded.
+
+## Current Result Snapshot
+
+The current confirmed evidence set contains 680 trained models: 480 CIFAR-10 image models and 200 character-transformer language models.
+
+FIM_norm is the motivating case study:
+
+| Audit | n | Raw rho | MBE partial rho | Class |
+|---|---:|---:|---:|---|
+| Image only, default controls | 480 | -0.662 | -0.218 | survives |
+| Text only, default controls | 200 | -0.291 | +0.014 | washout |
+| Full image+text pool | 680 | +0.225 | -0.203 | reverse-inversion |
+| Full pool, also controlling validation loss | 680 | +0.225 | -0.300 | reverse-inversion |
+
+The key point is selectivity: MBE weakens fragile pooled artifacts such as FIM_norm, feature rank, weight norms, and distance/update metrics, while several predictors survive, including validation loss, gradient/Fisher magnitude metrics, logit confidence metrics, and metric-batch accuracy.
+
+See [JMLR_RUN_PROGRESS_LOG_2026-06-28.md](JMLR_RUN_PROGRESS_LOG_2026-06-28.md) for the run ledger and [experiments/07_jmlr_scale/ARTIFACTS.md](experiments/07_jmlr_scale/ARTIFACTS.md) for result artifact hashes.
 
 ## Repository Structure
 
-```
+```text
 metric-audit-paper-code/
-├── mbe_eval/               # The core MBE evaluation API
-│   ├── __init__.py
-│   ├── core.py             # MBEEvaluator class
-│   ├── utils.py            # PyTorch FIM_norm extraction
-│   └── sample_eval.py      # Basic synthetic simulation
-├── examples/               # Real end-to-end PyTorch demos
-│   ├── 01_run_acid_test.py
-│   └── 02_run_heterogeneous_grid.py
-├── experiments/            # All 12 original paper experiment scripts
-├── metric_audit/           # Core FIM_norm computation library
-├── docs/
-│   └── RESULTS.md          # Raw numerical results for the paper
-├── PAPER.md                # Full technical writeup
-├── requirements.txt
-├── LICENSE
-└── README.md
++-- mbe_eval/
+|   +-- __init__.py
+|   +-- core.py
+|   +-- utils.py
+|   +-- sample_eval.py
++-- examples/
+|   +-- 01_run_acid_test.py
+|   +-- 02_run_heterogeneous_grid.py
++-- experiments/
+|   +-- 04_falsification/
+|   +-- 05_kaggle/
+|   +-- 06_independent_audit/
+|   +-- 07_jmlr_scale/
++-- JMLR_RUN_PROGRESS_LOG_2026-06-28.md
++-- tests/
++-- pyproject.toml
++-- setup.py
++-- README.md
 ```
 
 ## Citation
 
-If you use the Marginal Baseline Eval in your own representation evaluation, please cite the accompanying manuscript:
+```bibtex
+@article{shadangi2026mbe,
+  title={Marginal Baseline Evaluation for Auditing Generalization Metrics},
+  author={Shadangi, Aparajeet},
+  year={2026},
+  note={Preprint}
+}
+```
 
-```
-Shadangi, A. (2026). Does It Beat the Baseline? A Comprehensive Negative Result 
-on Gradient Effective Rank as a Generalization Predictor. arXiv preprint.
-```
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.

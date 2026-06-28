@@ -1,31 +1,46 @@
-from setuptools import setup, find_packages
+﻿from setuptools import find_packages, setup
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
 
-# We only include the core evaluation dependencies.
-# We don't want to force torch/torchvision on users who just want to run the pingouin math,
-# unless they specifically want to use the PyTorch examples. But since the utils uses torch,
-# we should include it. Or better, let's include the basics.
-with open("requirements.txt", "r", encoding="utf-8") as f:
-    requirements = [line.strip() for line in f if line.strip()]
+with open("README.md", "r", encoding="utf-8") as handle:
+    long_description = handle.read()
+
 
 setup(
     name="mbe-eval",
-    version="0.1.0",
+    version="0.2.0",
     author="Aparajeet Shadangi",
-    author_email="author@example.com",
-    description="Marginal Baseline Eval (MBE): A framework for rigorously auditing representation metrics in deep neural networks.",
+    author_email="aparajeet.shadangi@proton.me",
+    description="Marginal Baseline Evaluation for auditing generalization metrics.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/AparajeetS/metric-audit-paper-code",
-    packages=find_packages(exclude=["experiments", "examples", "docs"]),
+    project_urls={
+        "Source": "https://github.com/AparajeetS/metric-audit-paper-code",
+        "Issues": "https://github.com/AparajeetS/metric-audit-paper-code/issues",
+    },
+    packages=find_packages(exclude=["experiments*", "examples*", "docs*", "tests*"]),
     classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Science/Research",
         "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
-    python_requires=">=3.8",
-    install_requires=requirements,
+    license="MIT",
+    python_requires=">=3.9",
+    install_requires=[
+        "numpy>=1.24",
+        "pandas>=2.0",
+        "scipy>=1.10",
+    ],
+    extras_require={
+        "torch": ["torch>=2.0", "torchvision>=0.15"],
+        "plot": ["matplotlib>=3.7", "seaborn>=0.12"],
+        "examples": ["torch>=2.0", "torchvision>=0.15", "scikit-learn>=1.3"],
+        "dev": ["pytest>=7", "build>=1.0", "twine>=4"],
+    },
 )
